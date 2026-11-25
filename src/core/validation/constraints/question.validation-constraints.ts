@@ -1,0 +1,6 @@
+export const QUESTION_VALIDATION_CONSTRAINTS = {
+  BODY: {
+    MIN_LENGTH: 10,
+    MAX_LENGTH: 500,
+  },
+};

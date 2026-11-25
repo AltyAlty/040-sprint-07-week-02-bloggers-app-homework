@@ -1,0 +1,284 @@
+Запросы для создания БД для этого приложения. Запросы на создание индексов сделаны на основе сущностей и миграций №2-6,
+так как миграция №1 является инициализационной, а миграции №2-6 дополняют миграцию №1 добавлением индексов, которые не
+могут быть сгенерированы средствами TypeORM. В рамках текущего проекта нужен только первый запрос для создания самой БД,
+так как заполнение БД таблицами и индексами идет через сущности и миграции:
+
+CREATE DATABASE "040-s-07-w-02-bloggers-app-hw"
+	WITH
+		OWNER = postgres
+		ENCODING = 'UTF8'
+		LOCALE_PROVIDER = 'libc'
+		CONNECTION LIMIT = -1
+		IS_TEMPLATE = False;
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE TABLE public.users (
+	id             UUID          PRIMARY KEY,
+	login          VARCHAR(10)   COLLATE "C" NOT NULL UNIQUE,
+	original_email VARCHAR(1000) NOT NULL,
+	email          VARCHAR(1000) COLLATE "C" NOT NULL UNIQUE,
+	password_hash  VARCHAR(1000) NOT NULL,
+	is_confirmed   BOOLEAN       NOT NULL DEFAULT false,
+	created_at     TIMESTAMP     NOT NULL DEFAULT NOW(),
+	deleted_at     TIMESTAMP     DEFAULT NULL
+);
+
+CREATE TABLE public.email_confirmations (
+	id                UUID         PRIMARY KEY,
+	user_id           UUID         NOT NULL,
+	confirmation_code VARCHAR(100) NOT NULL,
+	expiration_date   TIMESTAMP    NOT NULL,
+	FOREIGN KEY (user_id)
+		REFERENCES public.users (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION
+);
+
+CREATE TABLE public.password_recovery_codes_data (
+	id                     UUID         PRIMARY KEY,
+	user_id                UUID         NOT NULL,
+	password_recovery_code VARCHAR(100) NOT NULL,
+	expiration_date        TIMESTAMP    NOT NULL,
+	FOREIGN KEY (user_id)
+		REFERENCES public.users (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION
+);
+
+CREATE TABLE public.security_devices (
+	device_id        UUID          PRIMARY KEY,
+	user_id          UUID          NOT NULL,
+	title            VARCHAR(1000) NOT NULL,
+	ip               VARCHAR(100)  NOT NULL,
+	last_active_date TIMESTAMP     NOT NULL,
+	created_at       TIMESTAMP     NOT NULL DEFAULT NOW(),
+	FOREIGN KEY (user_id)
+		REFERENCES public.users (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION
+);
+
+CREATE TABLE public.sessions (
+	id         UUID      PRIMARY KEY,
+	user_id    UUID      NOT NULL,
+	device_id  UUID      NOT NULL,
+	iat        TIMESTAMP NOT NULL,
+	exp        TIMESTAMP NOT NULL,
+	created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+	FOREIGN KEY (user_id)
+		REFERENCES public.users (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION,
+	FOREIGN KEY (device_id)
+		REFERENCES public.security_devices (device_id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION
+);
+
+CREATE TABLE public.blogs (
+	id            UUID         PRIMARY KEY,
+	name          VARCHAR(15)  COLLATE "C" NOT NULL,
+	description   VARCHAR(500) COLLATE "C" NOT NULL,
+	website_url   VARCHAR(100) COLLATE "C" NOT NULL,
+	is_membership BOOLEAN      NOT NULL DEFAULT false,
+	created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+	deleted_at    TIMESTAMP    DEFAULT NULL
+);
+
+CREATE TABLE public.posts (
+	id                UUID          PRIMARY KEY,
+	blog_id           UUID          NOT NULL,
+	title             VARCHAR(30)   COLLATE "C" NOT NULL,
+	short_description VARCHAR(100)  COLLATE "C" NOT NULL,
+	content           VARCHAR(1000) COLLATE "C" NOT NULL,
+	likes_count       INT           NOT NULL DEFAULT 0 CHECK (likes_count >= 0),
+	dislikes_count    INT           NOT NULL DEFAULT 0 CHECK (dislikes_count >= 0),
+	created_at        TIMESTAMP     NOT NULL DEFAULT NOW(),
+	deleted_at        TIMESTAMP     DEFAULT NULL,
+	FOREIGN KEY (blog_id)
+		REFERENCES public.blogs (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION
+);
+
+CREATE TABLE public.post_likes_data (
+	id          UUID       PRIMARY KEY,
+	post_id     UUID       NOT NULL,
+	blog_id     UUID       NOT NULL,
+	user_id     UUID       NOT NULL,
+	like_status VARCHAR(7) NOT NULL CHECK (like_status IN ('Like', 'Dislike')),
+	added_at    TIMESTAMP  NOT NULL DEFAULT NOW(),
+	deleted_at  TIMESTAMP  DEFAULT NULL,
+	CONSTRAINT UQ_post_user UNIQUE (post_id, user_id),
+	FOREIGN KEY (post_id)
+		REFERENCES public.posts (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION,
+	FOREIGN KEY (blog_id)
+		REFERENCES public.blogs (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION,
+	FOREIGN KEY (user_id)
+		REFERENCES public.users (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION
+);
+
+CREATE TABLE public.comments (
+	id             UUID         PRIMARY KEY,
+	post_id        UUID         NOT NULL,
+	blog_id        UUID         NOT NULL,
+	user_id        UUID         NOT NULL,
+	content        VARCHAR(300) COLLATE "C" NOT NULL,
+	likes_count    INT          NOT NULL DEFAULT 0 CHECK (likes_count >= 0),
+	dislikes_count INT          NOT NULL DEFAULT 0 CHECK (dislikes_count >= 0),
+	created_at     TIMESTAMP    NOT NULL DEFAULT NOW(),
+	deleted_at     TIMESTAMP    DEFAULT NULL,
+	FOREIGN KEY (post_id)
+		REFERENCES public.posts (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION,
+	FOREIGN KEY (blog_id)
+		REFERENCES public.blogs (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION,
+	FOREIGN KEY (user_id)
+		REFERENCES public.users (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION
+);
+
+CREATE TABLE public.comment_likes_data (
+	id          UUID       PRIMARY KEY,
+	comment_id  UUID       NOT NULL,
+	post_id     UUID       NOT NULL,
+	blog_id     UUID       NOT NULL,
+	user_id     UUID       NOT NULL,
+	like_status VARCHAR(7) NOT NULL CHECK (like_status IN ('Like', 'Dislike')),
+	added_at    TIMESTAMP  NOT NULL DEFAULT NOW(),
+	deleted_at  TIMESTAMP  DEFAULT NULL,
+	CONSTRAINT UQ_comment_user UNIQUE (comment_id, user_id),
+	FOREIGN KEY (comment_id)
+		REFERENCES public.comments (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION,
+	FOREIGN KEY (post_id)
+		REFERENCES public.posts (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION,
+	FOREIGN KEY (blog_id)
+		REFERENCES public.blogs (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION,
+	FOREIGN KEY (user_id)
+		REFERENCES public.users (id) MATCH SIMPLE
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION
+);
+
+CREATE TABLE public.questions (
+    id              UUID         PRIMARY KEY,
+    body            VARCHAR(500) COLLATE "C" NOT NULL,
+    correct_answers JSONB        NOT NULL DEFAULT '[]'::jsonb,
+    is_published    BOOLEAN      NOT NULL DEFAULT false,
+    created_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    deleted_at      TIMESTAMP    DEFAULT NULL,
+    CONSTRAINT "CHK_questions_correct_answers_is_array"      CHECK (jsonb_typeof("correct_answers") = 'array'),
+    CONSTRAINT "CHK_questions_published_has_correct_answers" CHECK ("is_published" = false OR jsonb_array_length("correct_answers") > 0),
+    CONSTRAINT "CHK_questions_body_min_length"               CHECK (char_length("body") >= 10)
+);
+
+CREATE TABLE public.games (
+    id               UUID        PRIMARY KEY,
+    status           VARCHAR(19) NOT NULL DEFAULT 'PendingSecondPlayer',
+    created_at       TIMESTAMP   NOT NULL DEFAULT NOW(),
+    start_game_date  TIMESTAMP   DEFAULT NULL,
+    finish_game_date TIMESTAMP   DEFAULT NULL,
+    CONSTRAINT "CHK_games_status"               CHECK ("status" IN ('PendingSecondPlayer', 'Active', 'Finished')),
+    CONSTRAINT "CHK_games_status_matches_dates" CHECK (
+        ("status" = 'PendingSecondPlayer' AND "start_game_date" IS NULL AND "finish_game_date" IS NULL)
+        OR ("status" = 'Active' AND "start_game_date" IS NOT NULL AND "finish_game_date" IS NULL)
+        OR ("status" = 'Finished' AND "start_game_date" IS NOT NULL AND "finish_game_date" IS NOT NULL)
+    )
+);
+
+CREATE TABLE public.players (
+    id         UUID      PRIMARY KEY,
+    user_id    UUID      NOT NULL,
+    game_id    UUID      NOT NULL,
+    position   INTEGER   NOT NULL,
+    score      INTEGER   NOT NULL DEFAULT 0,
+    win_status VARCHAR   DEFAULT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT "UQ_players_game_id_user_id"     UNIQUE (game_id, user_id),
+    CONSTRAINT "UQ_players_game_id_position"    UNIQUE (game_id, position),
+    CONSTRAINT "CHK_players_position_positive"  CHECK  ("position" > 0),
+    CONSTRAINT "CHK_players_score_non_negative" CHECK  ("score" >= 0),
+    CONSTRAINT "CHK_players_win_status"         CHECK  ("win_status" IS NULL OR "win_status" IN ('Win', 'Lose', 'Draw')),
+    FOREIGN KEY (user_id)
+        REFERENCES public.users (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    FOREIGN KEY (game_id)
+        REFERENCES public.games (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+CREATE TABLE public.game_questions (
+    id          SERIAL    PRIMARY KEY,
+    game_id     UUID      NOT NULL,
+    question_id UUID      NOT NULL,
+    position    INTEGER   NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT "UQ_game_questions_game_id_position"    UNIQUE (game_id, position),
+    CONSTRAINT "UQ_game_questions_game_id_question_id" UNIQUE (game_id, question_id),
+    CONSTRAINT "CHK_game_questions_position_positive"  CHECK  ("position" > 0),
+    FOREIGN KEY (game_id)
+        REFERENCES public.games (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    FOREIGN KEY (question_id)
+        REFERENCES public.questions (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE RESTRICT
+);
+
+CREATE TABLE public.player_answers (
+    id               UUID       PRIMARY KEY,
+    player_id        UUID       NOT NULL,
+    game_question_id INTEGER    NOT NULL,
+    body             TEXT       NOT NULL,
+    status           VARCHAR(9) NOT NULL,
+    created_at       TIMESTAMP  NOT NULL DEFAULT NOW(),
+    CONSTRAINT "UQ_player_answers_player_id_game_question_id" UNIQUE (player_id, game_question_id),
+    CONSTRAINT "CHK_player_answers_status"                    CHECK  ("status" IN ('Correct', 'Incorrect')),
+    FOREIGN KEY (player_id)
+        REFERENCES public.players (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    FOREIGN KEY (game_question_id)
+        REFERENCES public.game_questions (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+CREATE INDEX        "IDX_blogs_name"                                    ON public.blogs            ("name");
+CREATE INDEX        "IDX_blogs_name_trgm"                               ON public.blogs            USING GIN ("name" gin_trgm_ops);
+CREATE INDEX        "IDX_blogs_created_at_id_active"                    ON public.blogs            ("created_at" DESC, "id" ASC) WHERE "deleted_at" IS NULL;
+CREATE INDEX        "IDX_posts_blog_id_created_at_id_active"            ON public.posts            ("blog_id", "created_at" DESC, "id" ASC) WHERE "deleted_at" IS NULL;
+CREATE INDEX        "IDX_posts_created_at_id_active"                    ON public.posts            ("created_at" DESC, "id" ASC) WHERE "deleted_at" IS NULL;
+CREATE INDEX        "IDX_post_likes_data_post_id_added_at_newest_likes" ON public.post_likes_data  ("post_id", "added_at") WHERE "like_status" = 'Like' AND "deleted_at" IS NULL;
+CREATE INDEX        "IDX_comments_post_id_created_at_id_active"         ON public.comments         ("post_id", "created_at" DESC, "id" ASC) WHERE "deleted_at" IS NULL;
+CREATE INDEX        "IDX_users_login_trgm"                              ON public.users            USING GIN ("login" gin_trgm_ops);
+CREATE INDEX        "IDX_users_email_trgm"                              ON public.users            USING GIN ("email" gin_trgm_ops);
+CREATE INDEX        "IDX_users_original_email_trgm"                     ON public.users            USING GIN ("original_email" gin_trgm_ops);
+CREATE INDEX        "IDX_users_created_at_id_active"                    ON public.users            ("created_at" DESC, "id" ASC) WHERE "deleted_at" IS NULL;
+CREATE INDEX        "IDX_security_devices_user_id"                      ON public.security_devices ("user_id");
+CREATE INDEX        "IDX_sessions_user_id_device_id_iat"                ON public.sessions         ("user_id", "device_id", "iat");
+CREATE INDEX        "IDX_games_pending_second_player"                   ON public.games            ("status") WHERE "status" = 'PendingSecondPlayer';
+CREATE UNIQUE INDEX "UQ_players_user_id_unfinished_game"                ON public.players          ("user_id") WHERE "win_status" IS NULL;
+
+/*--------------------------------------------------------------------------------------------------------------------*/

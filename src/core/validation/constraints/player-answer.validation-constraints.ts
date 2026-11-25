@@ -1,0 +1,6 @@
+export const PLAYER_ANSWER_VALIDATION_CONSTRAINTS = {
+  STATUS: {
+    MIN_LENGTH: 1,
+    MAX_LENGTH: 9,
+  },
+};

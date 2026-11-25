@@ -1,0 +1,61 @@
+import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { CoreConfig, Environments } from './core/config/core.config';
+import { configModule } from './config.module';
+import { CoreModule } from './core/core.module';
+import { BlogModule } from './modules/blog/blog.module';
+import { QuizModule } from './modules/quiz/quiz.module';
+import { UserModule } from './modules/user/user.module';
+import { TestingModule } from './testing/testing.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { DomainExceptionFilter } from './core/exception-filters/domain/domain.exception-filter';
+
+/*Главный обязательный модуль приложения.*/
+@Module({
+  imports: [
+    configModule,
+    ScheduleModule.forRoot(),
+    TypeOrmModule.forRootAsync({
+      imports: [CoreModule],
+      inject: [CoreConfig],
+      useFactory: (coreConfig: CoreConfig) => ({
+        type: coreConfig.POSTGRESQL_DB_TYPE as 'postgres',
+        host: coreConfig.POSTGRESQL_DB_HOST,
+        port: coreConfig.POSTGRESQL_DB_PORT,
+        username: coreConfig.POSTGRESQL_DB_USERNAME,
+        password: coreConfig.POSTGRESQL_DB_PASSWORD,
+        database: coreConfig.DB_NAME,
+        /*Автоматически регистрируем все сущности, которые были добавлены через "TypeOrmModule.forFeature()" в модулях
+        приложения, иначе пришлось бы вручную перечислять все сущности в массиве "entities".*/
+        autoLoadEntities: true,
+        /*Указываем, чтобы при каждом запуске приложения TypeORM автоматически сравнивал сущности с реальными таблицами
+        в БД и синхронизировал структуру. Строго рекомендуется использовать только в окружении для разработки.*/
+        synchronize: false,
+        /*Включаем логирование SQL-запросов.*/
+        logging: false,
+      }),
+    }),
+    ThrottlerModule.forRootAsync({
+      imports: [CoreModule],
+      inject: [CoreConfig],
+      useFactory: (coreConfig: CoreConfig) => [
+        { ttl: coreConfig.REQUEST_RATE_LIMIT_TTL * 1000, limit: coreConfig.REQUEST_RATE_LIMIT },
+      ],
+    }),
+    BlogModule,
+    UserModule,
+    QuizModule,
+    /*Используем здесь "process.env.NODE_ENV", а не класс "CoreConfig", так как массив "imports" формируется синхронно
+    до запуска DI-контейнера и класс "CoreConfig" еще не является созданным на этом этапе, но при это переменная
+    "process.env.NODE_ENV" уже является доступной, поскольку она задается через команду в терминале.*/
+    ...(process.env.NODE_ENV !== Environments.PRODUCTION ? [TestingModule] : []),
+  ],
+  controllers: [AppController],
+  /*Регистрация глобального фильтра исключений "DomainExceptionFilter".*/
+  providers: [AppService, { provide: APP_FILTER, useClass: DomainExceptionFilter }],
+})
+export class AppModule {}

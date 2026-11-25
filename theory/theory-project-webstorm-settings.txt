@@ -1,0 +1,37 @@
+Настройка пакетного менеджера в WebStorm:
+1. Перейти Settings -> Languages & Frameworks -> JavaScript Runtime.
+2. Package manager - pnpm.
+
+/*--------------------------------------------------------------------------------------------------------------------*/
+
+Настройка Prettier в WebStorm:
+1. Перейти Settings -> Languages & Frameworks -> JavaScript -> Prettier.
+2. Manual Prettier Configuration - ON.
+3. Run on 'Reformat Code' action - ON.
+4. Apply Prettier to files outside the prettier dependency scope - OFF.
+5. Run for files - добавить шаблон "json".
+6. Run on save - ON.
+
+/*--------------------------------------------------------------------------------------------------------------------*/
+
+Настройка ESLint в WebStorm:
+1. Перейти Settings -> Languages & Frameworks -> JavaScript -> Code Quality Tools -> ESLint.
+2. Automatic ESLint configuration - ON.
+3. Run eslint --fix on save - ON.
+
+/*--------------------------------------------------------------------------------------------------------------------*/
+
+Настройка запуска тестов через Jest в WebStorm:
+1. Сверху слева нажать на три вертикальные точки и выбрать раздел "Edit...".
+2. Удалить все конфигурации для Jest.
+3. Выбрать раздел "Edit configuration templates ...".
+4. Выбрать раздел "Jest".
+5. Поле "Configuration file" -> указать путь к файлу "jest.config.ts".
+6. Поле "Node options" -> указать "--experimental-vm-modules --disable-warning=ExperimentalWarning".
+7. Поле "Jest package" -> указать путь к пакету Jest.
+8. Поле "Working directory" -> указать путь к папке проекта.
+9. Поле "Jest options" -> указать "--runInBand".
+10. Поле "Environment variables" -> указать "NODE_ENV=test".
+11. Нажать "Apply".
+
+/*--------------------------------------------------------------------------------------------------------------------*/
