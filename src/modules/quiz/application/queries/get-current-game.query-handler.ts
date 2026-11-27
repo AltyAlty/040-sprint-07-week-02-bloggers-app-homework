@@ -1,11 +1,10 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { User } from '../../../user/domain/users/users.entity';
 import { Game } from '../../domain/game.entity';
-import { GameQuestion, GameQuestionList } from '../../domain/game-question.entity';
+import { GameQuestionList } from '../../domain/game-question.entity';
 import { Player } from '../../domain/player.entity';
-import { PlayerAnswer, PlayerAnswerList } from '../../domain/player-answer.entity';
-import { GameOutputDTO, GameQuestionOutputDTO, GameStatusOutputDTO } from '../../api/output-dto/game.output-dto';
-import { PlayerAnswerOutputDTO, PlayerAnswerStatusOutputDTO } from '../../api/output-dto/player-answer.output-dto';
+import { PlayerAnswerList } from '../../domain/player-answer.entity';
+import { GameOutputDTO } from '../../api/output-dto/game.output-dto';
 import { GetCurrentGameQuery } from './get-current-game.query';
 import { UsersQueryRepository } from '../../../user/infrastructure/users/users.query-repository';
 import { QuizzesQueryRepository } from '../../infrastructure/quizzes.query-repository';
@@ -44,8 +43,6 @@ export class GetCurrentGameQueryHandler implements IQueryHandler<GetCurrentGameQ
 
     /*Просим репозиторий "QuizzesQueryRepository" найти второго игрока по ID игры в БД.*/
     const secondPlayer: Player | null = await this.quizzesQueryRepository.findSecondPlayerByGameId(game.id);
-    /*Создаем переменную для хранения прогресса второго игрока.*/
-    let secondPlayerProgress: GameOutputDTO['secondPlayerProgress'] = null;
 
     /*Если второй игрок уже подключился, то собираем его прогресс.*/
     if (secondPlayer) {
@@ -58,45 +55,23 @@ export class GetCurrentGameQueryHandler implements IQueryHandler<GetCurrentGameQ
         secondPlayer.id
       );
 
-      /*Собираем прогресс второго игрока.*/
-      secondPlayerProgress = {
-        answers: secondPlayerAnswerList.map((playerAnswer: PlayerAnswer): PlayerAnswerOutputDTO => ({
-          questionId: playerAnswer.gameQuestion.questionId,
-          answerStatus: playerAnswer.status as unknown as PlayerAnswerStatusOutputDTO,
-          addedAt: playerAnswer.createdAt,
-        })),
-        player: { id: secondPlayer.userId, login: secondUser!.login },
-        score: secondPlayer.score,
-      };
+      /*Кладем пользователя второго игрока в объект второго игрока, чтобы маппер мог прочитать эти данные.*/
+      secondPlayer.user = secondUser!;
+      /*Кладем ответы второго игрока в объект второго игрока, чтобы маппер мог прочитать эти данные.*/
+      secondPlayer.playerAnswerList = secondPlayerAnswerList;
     }
 
     /*Просим репозиторий "QuizzesQueryRepository" найти вопросы в игре вместе с вопросами по ID игры в БД.*/
     const gameQuestionList: GameQuestionList = await this.quizzesQueryRepository.findGameQuestionListByGameId(game.id);
-
+    /*Кладем пользователя первого игрока в объект первого игрока, чтобы маппер мог прочитать эти данные.*/
+    firstPlayer!.user = firstUser!;
+    /*Кладем ответы первого игрока в объект первого игрока, чтобы маппер мог прочитать эти данные.*/
+    firstPlayer!.playerAnswerList = firstPlayerAnswerList;
+    /*Кладем игроков в объект игры, чтобы маппер мог прочитать эти данные.*/
+    game.playerList = secondPlayer ? [firstPlayer!, secondPlayer] : [firstPlayer!];
+    /*Кладем вопросы в игре в объект игры, чтобы маппер мог прочитать эти данные.*/
+    game.gameQuestionList = gameQuestionList;
     /*Возвращаем данные об игре.*/
-    return {
-      id: game.id,
-      firstPlayerProgress: {
-        answers: firstPlayerAnswerList.map((playerAnswer: PlayerAnswer): PlayerAnswerOutputDTO => ({
-          questionId: playerAnswer.gameQuestion.questionId,
-          answerStatus: playerAnswer.status as unknown as PlayerAnswerStatusOutputDTO,
-          addedAt: playerAnswer.createdAt,
-        })),
-        player: { id: firstPlayer!.userId, login: firstUser!.login },
-        score: firstPlayer!.score,
-      },
-      secondPlayerProgress,
-      questions:
-        gameQuestionList.length > 0
-          ? gameQuestionList.map((gameQuestion: GameQuestion): GameQuestionOutputDTO => ({
-              id: gameQuestion.questionId,
-              body: gameQuestion.question.body,
-            }))
-          : null,
-      status: game.status as unknown as GameStatusOutputDTO,
-      pairCreatedDate: game.createdAt,
-      startGameDate: game.startGameDate,
-      finishGameDate: game.finishGameDate,
-    };
+    return GameOutputDTO.mapFromGameToGameOutputDTO(game);
   }
 }

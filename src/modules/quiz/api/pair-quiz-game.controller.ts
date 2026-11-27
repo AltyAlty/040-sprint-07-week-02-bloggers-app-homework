@@ -1,10 +1,13 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ApiTags } from '@nestjs/swagger';
 import { SETTINGS } from '../../../core/settings/settings';
+import { GetGameListQueryInputDTO } from './input-dto/query/get-game-list-query.input-dto';
 import { SendPlayerAnswerToGameQuestionInputDTO } from './input-dto/send-player-answer-to-game-question.input-dto';
-import { GameOutputDTO } from './output-dto/game.output-dto';
+import { PaginationMetaDataOutputDTO } from '../../../core/pagination/output-dto/pagination-meta-data.output-dto';
+import { GameListOutputDTO, GameOutputDTO } from './output-dto/game.output-dto';
 import { PlayerAnswerOutputDTO } from './output-dto/player-answer.output-dto';
+import { UserGameStatisticsOutputDTO } from './output-dto/user-game-statistics.output-dto';
 import { UserAccessJwtAuthContextDTO } from '../../../core/guards/access-jwt-auth/dto/user-access-jwt-auth-context.dto';
 import { UuidParam } from '../../../core/decorators/validation/uuid-param.validation-decorator';
 import { ExtractUserDataFromRequest } from '../../user/api/auth/decorators/param-extraction/extract-user-data-from-request.param-decorator';
@@ -13,6 +16,8 @@ import { JoinOrCreateGameCommand } from '../application/commands/join-or-create-
 import { SendPlayerAnswerToGameQuestionCommand } from '../application/commands/send-player-answer-to-game-question.command';
 import { GetCurrentGameQuery } from '../application/queries/get-current-game.query';
 import { GetGameByGameIdAndUserIdQuery } from '../application/queries/get-game-by-game-id-and-user-id.query';
+import { GetGameListByUserIdQuery } from '../application/queries/get-game-list-by-user-id.query';
+import { GetUserGameStatisticsByUserIdQuery } from '../application/queries/get-user-game-statistics-by-user-id.query';
 
 /*Контроллер для квизов.*/
 @ApiTags(SETTINGS.PAIR_GAME_QUIZ_API_TAG)
@@ -57,7 +62,18 @@ export class PairGameQuizController {
     return this.queryBus.execute(new GetCurrentGameQuery(userAccessJwtAuthContext!.id));
   }
 
-  /*004. GET-запрос по получению игры по ID игры и ID пользователя, используя URI-параметры.*/
+  /*004. GET-запрос по поиску игр по ID пользователя с пагинацией, используя query-параметры.*/
+  @Get(SETTINGS.PAIR_GAME_QUIZ_GET_GAME_LIST_BY_USER_ID_PATH)
+  @HttpCode(HttpStatus.OK)
+  public async getGameListByUserId(
+    @Query() query: GetGameListQueryInputDTO,
+    @ExtractUserDataFromRequest() userAccessJwtAuthContext: UserAccessJwtAuthContextDTO | null
+  ): Promise<PaginationMetaDataOutputDTO<GameListOutputDTO>> {
+    /*Просим шину "QueryBus" найти игры по ID пользователя.*/
+    return this.queryBus.execute(new GetGameListByUserIdQuery(userAccessJwtAuthContext!.id, query));
+  }
+
+  /*005. GET-запрос по получению игры по ID игры и ID пользователя, используя URI-параметры.*/
   @Get(SETTINGS.PAIR_GAME_QUIZ_GET_GAME_BY_GAME_ID_AND_USER_ID_PATH)
   @HttpCode(HttpStatus.OK)
   public async getGameByGameIdAndUserId(
@@ -68,5 +84,15 @@ export class PairGameQuizController {
     return this.queryBus.execute(
       new GetGameByGameIdAndUserIdQuery({ gameId: id, userId: userAccessJwtAuthContext!.id })
     );
+  }
+
+  /*006. GET-запрос по получению игровой статистика пользователя по ID пользователя.*/
+  @Get(SETTINGS.PAIR_GAME_QUIZ_GET_USER_GAME_STATISTICS_BY_USER_ID_PATH)
+  @HttpCode(HttpStatus.OK)
+  public async getUserGameStatisticsByUserId(
+    @ExtractUserDataFromRequest() userAccessJwtAuthContext: UserAccessJwtAuthContextDTO | null
+  ): Promise<UserGameStatisticsOutputDTO> {
+    /*Просим шину "QueryBus" найти игровую статистику пользователя по ID пользователя.*/
+    return this.queryBus.execute(new GetUserGameStatisticsByUserIdQuery(userAccessJwtAuthContext!.id));
   }
 }

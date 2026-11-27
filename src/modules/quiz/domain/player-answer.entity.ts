@@ -44,7 +44,7 @@ export class PlayerAnswer {
   })
   public createdAt: Date;
 
-  @ManyToOne((): typeof Player => Player, (player: Player): PlayerAnswerList => player.answerList)
+  @ManyToOne((): typeof Player => Player, (player: Player): PlayerAnswerList => player.playerAnswerList)
   @JoinColumn({ name: 'player_id' })
   public player: Player;
 

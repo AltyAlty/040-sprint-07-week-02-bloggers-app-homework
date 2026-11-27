@@ -55,18 +55,16 @@ export class JoinOrCreateGameCommandHandler implements ICommandHandler<JoinOrCre
       await this.quizzesRepository.savePlayer(player);
       /*Просим репозиторий "UsersRepository" найти пользователя по ID в БД.*/
       const user: User | null = await this.usersRepository.findById(userId);
-
+      /*Кладем пользователя игрока в объект игрока, чтобы маппер мог прочитать эти данные.*/
+      player.user = user!;
+      /*Кладем ответы игрока в объект игрока, чтобы маппер мог прочитать эти данные.*/
+      player.playerAnswerList = [];
+      /*Кладем игрока в объект игры, чтобы маппер мог прочитать эти данные.*/
+      game.playerList = [player];
+      /*Кладем вопросы в игре в объект игры, чтобы маппер мог прочитать эти данные.*/
+      game.gameQuestionList = [];
       /*Возвращаем данные о созданной игре.*/
-      return {
-        id: game.id,
-        firstPlayerProgress: { answers: [], player: { id: userId, login: user!.login }, score: 0 },
-        secondPlayerProgress: null,
-        questions: null,
-        status: GameStatusOutputDTO.PendingSecondPlayer,
-        pairCreatedDate: game.createdAt,
-        startGameDate: null,
-        finishGameDate: null,
-      };
+      return GameOutputDTO.mapFromGameToGameOutputDTO(game);
     } else {
       /*Просим репозиторий "QuizzesRepository" найти первого игрока по ID игры в БД.*/
       const firstPlayer: Player | null = await this.quizzesRepository.findFirstPlayerByGameId(randomPendingGame.id);
@@ -120,17 +118,26 @@ export class JoinOrCreateGameCommandHandler implements ICommandHandler<JoinOrCre
       /*Просим репозиторий "QuizzesRepository" сохранить начатую игру в БД.*/
       await this.quizzesRepository.saveGame(randomPendingGame);
 
+      /*Кладем пользователя первого игрока в объект первого игрока, чтобы маппер мог прочитать эти данные.*/
+      firstPlayer!.user = firstUser!;
+      /*Кладем ответы первого игрока в объект первого игрока, чтобы маппер мог прочитать эти данные.*/
+      firstPlayer!.playerAnswerList = [];
+      /*Кладем пользователя второго игрока в объект второго игрока, чтобы маппер мог прочитать эти данные.*/
+      secondPlayer.user = secondUser!;
+      /*Кладем ответы второго игрока в объект второго игрока, чтобы маппер мог прочитать эти данные.*/
+      secondPlayer.playerAnswerList = [];
+      /*Кладем игроков в объект игры, чтобы маппер мог прочитать эти данные.*/
+      randomPendingGame.playerList = [firstPlayer!, secondPlayer];
+
+      /*Для каждого вопроса в игре кладем соответствующий вопрос из списка вопросов.*/
+      gameQuestionList.forEach((gameQuestion: GameQuestion, index: number): void => {
+        gameQuestion.question = questionList[index];
+      });
+
+      /*Кладем вопросы в игре в объект игры, чтобы маппер мог прочитать эти данные.*/
+      randomPendingGame.gameQuestionList = gameQuestionList;
       /*Возвращаем данные об игре.*/
-      return {
-        id: randomPendingGame.id,
-        firstPlayerProgress: { answers: [], player: { id: firstPlayer!.userId, login: firstUser!.login }, score: 0 },
-        secondPlayerProgress: { answers: [], player: { id: userId, login: secondUser!.login }, score: 0 },
-        questions: questionList.map((question: Question) => ({ id: question.id, body: question.body })),
-        status: GameStatusOutputDTO.Active,
-        pairCreatedDate: randomPendingGame.createdAt,
-        startGameDate: randomPendingGame.startGameDate,
-        finishGameDate: null,
-      };
+      return GameOutputDTO.mapFromGameToGameOutputDTO(randomPendingGame);
     }
   }
 }
