@@ -523,7 +523,7 @@
 /*--------------------------------------------------------------------------------------------------------------------*/
 
 Структура версии приложения с использованием NestJS + PostgreSQL + TypeORM + Migrations + Indexes + Scheduler + Tests
-(039-sprint-07-week-01-bloggers-app-homework):
+(040-sprint-07-week-02-bloggers-app-homework):
 0.1 "/src/main.ts" - точка входа приложения.
 0.2 "/src/app.module.ts" - главный обязательный модуль "AppModule".
 0.3 "/src/app.controller.ts" - необязательный контроллер для модуля "AppModule".
